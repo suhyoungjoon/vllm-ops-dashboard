@@ -14,10 +14,69 @@ const el = {
   runningValue: document.getElementById("value-running"),
   waitingValue: document.getElementById("value-waiting"),
   tpsValue: document.getElementById("value-tps"),
+  ttftP50: document.getElementById("value-ttft-p50"),
+  ttftP90: document.getElementById("value-ttft-p90"),
+  ttftP99: document.getElementById("value-ttft-p99"),
+  e2eP50: document.getElementById("value-e2e-p50"),
+  e2eP90: document.getElementById("value-e2e-p90"),
+  e2eP99: document.getElementById("value-e2e-p99"),
+  queueTime: document.getElementById("value-queue-time"),
+  inferenceTime: document.getElementById("value-inference-time"),
+  preemptions: document.getElementById("value-preemptions"),
+  prefixHitRate: document.getElementById("value-prefix-hit-rate"),
+  configPanel: document.getElementById("panel-config"),
+  configGrid: document.getElementById("config-grid"),
 };
+
+// 서빙 설정(vllm:cache_config_info) 라벨 중 사용자에게 의미 있는 항목만 골라 보여준다.
+const CONFIG_FIELDS = [
+  ["cache_dtype", "KV 캐시 dtype"],
+  ["block_size", "블록 크기"],
+  ["num_gpu_blocks", "GPU 블록 수"],
+  ["gpu_memory_utilization", "GPU 메모리 사용률 설정"],
+  ["kv_cache_max_concurrency", "KV 캐시 최대 동시성"],
+  ["enable_prefix_caching", "Prefix 캐싱"],
+  ["prefix_caching_hash_algo", "Prefix 해시 알고리즘"],
+];
 
 function formatTime(unixSeconds) {
   return new Date(unixSeconds * 1000).toLocaleTimeString("ko-KR", { hour12: false });
+}
+
+function formatSeconds(seconds) {
+  if (seconds === null || seconds === undefined) return "--";
+  if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`;
+  return `${seconds.toFixed(2)}s`;
+}
+
+function formatPercent(ratio) {
+  return ratio === null || ratio === undefined ? "--" : `${(ratio * 100).toFixed(1)}%`;
+}
+
+function renderConfigPanel(cacheConfig) {
+  if (!cacheConfig || el.configPanel.dataset.rendered) return;
+  el.configGrid.innerHTML = CONFIG_FIELDS.filter(([key]) => key in cacheConfig)
+    .map(
+      ([key, label]) =>
+        `<div class="config-item"><span class="config-item__label">${label}</span><span class="config-item__value">${cacheConfig[key]}</span></div>`
+    )
+    .join("");
+  el.configPanel.hidden = false;
+  el.configPanel.dataset.rendered = "true";
+}
+
+function updateAdvancedStats(message) {
+  el.ttftP50.textContent = formatSeconds(message.ttft_p50_seconds);
+  el.ttftP90.textContent = formatSeconds(message.ttft_p90_seconds);
+  el.ttftP99.textContent = formatSeconds(message.ttft_p99_seconds);
+  el.e2eP50.textContent = formatSeconds(message.e2e_p50_seconds);
+  el.e2eP90.textContent = formatSeconds(message.e2e_p90_seconds);
+  el.e2eP99.textContent = formatSeconds(message.e2e_p99_seconds);
+  el.queueTime.textContent = formatSeconds(message.queue_time_avg_seconds);
+  el.inferenceTime.textContent = formatSeconds(message.inference_time_avg_seconds);
+  el.preemptions.textContent = message.num_preemptions_total.toFixed(0);
+  el.prefixHitRate.textContent = formatPercent(message.prefix_cache_hit_rate);
+  renderConfigPanel(message.cache_config);
 }
 
 function pruneOldPoints(latestTimestamp) {
@@ -122,6 +181,7 @@ function handleMessage(message) {
 
   updateCards(message, tps);
   updateCharts();
+  updateAdvancedStats(message);
 }
 
 function connect() {

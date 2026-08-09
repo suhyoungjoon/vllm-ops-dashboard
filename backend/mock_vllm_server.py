@@ -78,17 +78,89 @@ request_success_total = Counter(
     registry=registry,
 )
 
+# vllm_metrics_sample.txt의 e2e_request_latency_seconds 버킷 경계값을 그대로 사용
+E2E_LATENCY_BUCKETS = (
+    0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 2.5, 5.0, 10.0, 15.0, 20.0,
+    30.0, 40.0, 50.0, 60.0, 120.0, 240.0, 480.0, 960.0, 1920.0, 7680.0,
+)
+
+e2e_request_latency_seconds = Histogram(
+    "vllm:e2e_request_latency_seconds",
+    "Histogram of end to end request latency in seconds.",
+    ["engine", "model_name"],
+    buckets=E2E_LATENCY_BUCKETS,
+    registry=registry,
+)
+request_queue_time_seconds = Histogram(
+    "vllm:request_queue_time_seconds",
+    "Histogram of time spent in WAITING phase for request.",
+    ["engine", "model_name"],
+    registry=registry,
+)
+request_inference_time_seconds = Histogram(
+    "vllm:request_inference_time_seconds",
+    "Histogram of time spent in RUNNING phase for request.",
+    ["engine", "model_name"],
+    registry=registry,
+)
+num_preemptions_total = Counter(
+    "vllm:num_preemptions_total",
+    "Cumulative number of preemption from the engine.",
+    ["engine", "model_name"],
+    registry=registry,
+)
+prefix_cache_queries_total = Counter(
+    "vllm:prefix_cache_queries_total",
+    "Prefix cache queries, in terms of number of queried tokens.",
+    ["engine", "model_name"],
+    registry=registry,
+)
+prefix_cache_hits_total = Counter(
+    "vllm:prefix_cache_hits_total",
+    "Prefix cache hits, in terms of number of cached tokens.",
+    ["engine", "model_name"],
+    registry=registry,
+)
+cache_config_info = Gauge(
+    "vllm:cache_config_info",
+    "Information of the LLMEngine CacheConfig",
+    [
+        "engine", "model_name", "block_size", "cache_dtype", "enable_prefix_caching",
+        "gpu_memory_utilization", "kv_cache_max_concurrency", "num_gpu_blocks", "prefix_caching_hash_algo",
+    ],
+    registry=registry,
+)
+
 _kv_gauge = kv_cache_usage_perc.labels(**LABELS)
 _running_gauge = num_requests_running.labels(**LABELS)
 _waiting_gauge = num_requests_waiting.labels(**LABELS)
 _prompt_counter = prompt_tokens_total.labels(**LABELS)
 _generation_counter = generation_tokens_total.labels(**LABELS)
 _ttft_histogram = time_to_first_token_seconds.labels(**LABELS)
+_e2e_latency_histogram = e2e_request_latency_seconds.labels(**LABELS)
+_queue_time_histogram = request_queue_time_seconds.labels(**LABELS)
+_inference_time_histogram = request_inference_time_seconds.labels(**LABELS)
+_preemptions_counter = num_preemptions_total.labels(**LABELS)
+_prefix_queries_counter = prefix_cache_queries_total.labels(**LABELS)
+_prefix_hits_counter = prefix_cache_hits_total.labels(**LABELS)
 _success_counters = {
     reason: request_success_total.labels(**LABELS, finished_reason=reason)
     for reason in ("stop", "length", "abort", "error")
 }
 _finished_reason_weights = {"stop": 0.85, "length": 0.1, "abort": 0.03, "error": 0.02}
+
+# 실제 Qwen2.5-0.5B-Instruct 서빙 시 관측된 값(vllm_metrics_sample.txt)을 그대로 흉내낸 고정 서빙 설정.
+# 실행 중 바뀌지 않는 정보성 지표라 한 번만 세팅한다.
+cache_config_info.labels(
+    **LABELS,
+    block_size="16",
+    cache_dtype="auto",
+    enable_prefix_caching="True",
+    gpu_memory_utilization="0.92",
+    kv_cache_max_concurrency="39.78",
+    num_gpu_blocks="81469",
+    prefix_caching_hash_algo="sha256",
+).set(1.0)
 
 _start_time = time.monotonic()
 
@@ -113,12 +185,28 @@ def _tick() -> None:
     _waiting_gauge.set(waiting)
 
     active_requests = max(running, 1)
-    _prompt_counter.inc(random.uniform(0, 20) * active_requests)
+    prompt_tokens_this_tick = random.uniform(0, 20) * active_requests
+    _prompt_counter.inc(prompt_tokens_this_tick)
     _generation_counter.inc(random.uniform(5, 15) * active_requests)
+
+    # prefix caching: 토큰의 60~90%가 캐시 조회 대상이고, 그중 70~95%가 적중한다고 가정
+    queried = prompt_tokens_this_tick * random.uniform(0.6, 0.9)
+    _prefix_queries_counter.inc(queried)
+    _prefix_hits_counter.inc(queried * random.uniform(0.7, 0.95))
+
+    # 대기열이 MAX_CONCURRENCY에 근접할 때만 드물게 선점(preemption) 발생
+    if waiting > 0 and random.random() < 0.1:
+        _preemptions_counter.inc()
 
     completed = max(0, round(random.gauss(active_requests * 0.3, 1)))
     for _ in range(completed):
-        _ttft_histogram.observe(max(0.001, random.lognormvariate(math.log(0.15), 0.6)))
+        queue_s = max(0.0, random.lognormvariate(math.log(0.05), 0.8)) if waiting > 0 else 0.001
+        ttft_s = max(0.001, random.lognormvariate(math.log(0.15), 0.6))
+        inference_s = max(0.01, random.lognormvariate(math.log(1.2), 0.7))
+        _queue_time_histogram.observe(queue_s)
+        _ttft_histogram.observe(ttft_s)
+        _inference_time_histogram.observe(inference_s)
+        _e2e_latency_histogram.observe(queue_s + inference_s)
         reason = random.choices(
             list(_finished_reason_weights.keys()),
             weights=list(_finished_reason_weights.values()),

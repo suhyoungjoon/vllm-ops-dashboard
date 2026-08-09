@@ -40,6 +40,63 @@
   </div>
 </section>
 
+<section class="panel">
+  <h2 class="panel__title">지연시간 분포</h2>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat__label">TTFT p50</div>
+      <div class="stat__value" id="value-ttft-p50">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">TTFT p90</div>
+      <div class="stat__value" id="value-ttft-p90">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">TTFT p99</div>
+      <div class="stat__value" id="value-ttft-p99">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">전체 요청 지연 p50</div>
+      <div class="stat__value" id="value-e2e-p50">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">전체 요청 지연 p90</div>
+      <div class="stat__value" id="value-e2e-p90">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">전체 요청 지연 p99</div>
+      <div class="stat__value" id="value-e2e-p99">--</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2 class="panel__title">운영 신호</h2>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat__label">대기시간(평균)</div>
+      <div class="stat__value" id="value-queue-time">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">처리시간(평균)</div>
+      <div class="stat__value" id="value-inference-time">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">선점(preemption) 누계</div>
+      <div class="stat__value" id="value-preemptions">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">Prefix 캐시 적중률</div>
+      <div class="stat__value" id="value-prefix-hit-rate">--</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="panel-config" hidden>
+  <h2 class="panel__title">서빙 설정 <span class="panel__hint">vllm:cache_config_info</span></h2>
+  <div class="config-grid" id="config-grid"></div>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
