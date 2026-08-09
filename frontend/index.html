@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vLLM Ops Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>vLLM Ops Dashboard</h1>
+  <span id="connection-status" class="status status--connecting">연결 중...</span>
+</header>
+
+<section class="cards">
+  <div class="card" id="card-kv">
+    <div class="card__label">KV 캐시 사용률</div>
+    <div class="card__value" id="value-kv">--</div>
+  </div>
+  <div class="card" id="card-running">
+    <div class="card__label">실행중 요청</div>
+    <div class="card__value" id="value-running">--</div>
+  </div>
+  <div class="card" id="card-waiting">
+    <div class="card__label">대기중 요청</div>
+    <div class="card__value" id="value-waiting">--</div>
+  </div>
+  <div class="card" id="card-tps">
+    <div class="card__label">TPS (토큰/초)</div>
+    <div class="card__value" id="value-tps">--</div>
+  </div>
+</section>
+
+<section class="charts">
+  <div class="chart-container">
+    <canvas id="chart-kv"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="chart-requests"></canvas>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
