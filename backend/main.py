@@ -17,6 +17,7 @@ import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+from backend.diagnostics import Diagnosis, diagnose
 from backend.poller import fetch_metrics, parse_metrics
 from backend.store import DEFAULT_RETENTION_SECONDS, MetricsSnapshot, MetricsStore
 
@@ -52,8 +53,12 @@ class ConnectionManager:
             self.unregister(connection)
 
 
-def snapshot_to_message(snapshot: MetricsSnapshot) -> dict:
-    return {"timestamp": snapshot.timestamp, **asdict(snapshot.metrics)}
+def snapshot_to_message(snapshot: MetricsSnapshot, diagnosis: list[Diagnosis] | None = None) -> dict:
+    return {
+        "timestamp": snapshot.timestamp,
+        **asdict(snapshot.metrics),
+        "diagnosis": [asdict(d) for d in (diagnosis or [])],
+    }
 
 
 async def poll_once(
@@ -66,9 +71,15 @@ async def poll_once(
     text = await fetch_metrics(client, url)
     metrics = parse_metrics(text)
     ts = timestamp if timestamp is not None else time.time()
+
+    previous = store.get_recent()
+    prev_preemptions = previous[-1].metrics.num_preemptions_total if previous else metrics.num_preemptions_total
+    preemptions_delta = max(0.0, metrics.num_preemptions_total - prev_preemptions)
+
     snapshot = MetricsSnapshot(timestamp=ts, metrics=metrics)
     store.add(metrics, ts)
-    await manager.broadcast(snapshot_to_message(snapshot))
+    diagnosis = diagnose(metrics, preemptions_delta)
+    await manager.broadcast(snapshot_to_message(snapshot, diagnosis))
     return snapshot
 
 

@@ -26,7 +26,20 @@ const el = {
   prefixHitRate: document.getElementById("value-prefix-hit-rate"),
   configPanel: document.getElementById("panel-config"),
   configGrid: document.getElementById("config-grid"),
+  diagnosisPanel: document.getElementById("diagnosis-panel"),
 };
+
+const DIAGNOSIS_ICONS = { warning: "⚠", info: "ℹ", ok: "✓" };
+
+function renderDiagnosis(diagnosis) {
+  if (!diagnosis || diagnosis.length === 0) return;
+  el.diagnosisPanel.innerHTML = diagnosis
+    .map(
+      (d) =>
+        `<div class="diagnosis-item diagnosis-item--${d.level}"><span class="diagnosis-item__icon">${DIAGNOSIS_ICONS[d.level] || ""}</span><span>${d.message}</span></div>`
+    )
+    .join("");
+}
 
 // 서빙 설정(vllm:cache_config_info) 라벨 중 사용자에게 의미 있는 항목만 골라 보여준다.
 const CONFIG_FIELDS = [
@@ -182,6 +195,7 @@ function handleMessage(message) {
   updateCards(message, tps);
   updateCharts();
   updateAdvancedStats(message);
+  renderDiagnosis(message.diagnosis);
 }
 
 function connect() {

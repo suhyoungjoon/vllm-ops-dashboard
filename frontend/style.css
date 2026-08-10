@@ -52,6 +52,45 @@ h1 {
   border-color: #92400e;
 }
 
+.diagnosis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.diagnosis-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+  background: var(--surface);
+}
+
+.diagnosis-item__icon {
+  flex-shrink: 0;
+}
+
+.diagnosis-item--warning {
+  background: var(--warning-bg);
+  border-color: #b91c1c;
+  color: var(--warning-text);
+}
+
+.diagnosis-item--info {
+  background: #1e3a5f;
+  border-color: #1d4ed8;
+  color: #bfdbfe;
+}
+
+.diagnosis-item--ok {
+  color: #86efac;
+  border-color: #166534;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
