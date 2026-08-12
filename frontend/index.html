@@ -102,6 +102,24 @@
   </div>
 </section>
 
+<section class="panel">
+  <h2 class="panel__title">상용 API 환산 비용 <span class="panel__hint">서버 시작 이후 누적 토큰 기준 참고치</span></h2>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat__label">누적 입력 토큰</div>
+      <div class="stat__value" id="value-cost-prompt-tokens">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">누적 출력 토큰</div>
+      <div class="stat__value" id="value-cost-generation-tokens">--</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">상용 API 환산 비용</div>
+      <div class="stat__value" id="value-cost-estimate">--</div>
+    </div>
+  </div>
+</section>
+
 <section class="panel" id="panel-config" hidden>
   <h2 class="panel__title">서빙 설정 <span class="panel__hint">vllm:cache_config_info</span></h2>
   <div class="config-grid" id="config-grid"></div>

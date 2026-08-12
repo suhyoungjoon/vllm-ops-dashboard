@@ -18,6 +18,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from backend.capacity import CapacityEstimate, estimate_capacity
+from backend.cost import CostEstimate, estimate_cost
 from backend.diagnostics import Diagnosis, diagnose
 from backend.poller import fetch_metrics, parse_metrics
 from backend.store import DEFAULT_RETENTION_SECONDS, MetricsSnapshot, MetricsStore
@@ -27,6 +28,20 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 VLLM_METRICS_URL = os.environ.get("VLLM_METRICS_URL", "http://localhost:8000/metrics")
 POLL_INTERVAL_SECONDS = float(os.environ.get("POLL_INTERVAL_SECONDS", "2"))
 RETENTION_SECONDS = float(os.environ.get("RETENTION_SECONDS", str(DEFAULT_RETENTION_SECONDS)))
+
+
+def _parse_price(env_var: str) -> float | None:
+    raw = os.environ.get(env_var)
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+COMMERCIAL_PROMPT_PRICE_PER_1M = _parse_price("COMMERCIAL_PROMPT_PRICE_PER_1M_TOKENS")
+COMMERCIAL_COMPLETION_PRICE_PER_1M = _parse_price("COMMERCIAL_COMPLETION_PRICE_PER_1M_TOKENS")
 
 
 class SupportsSendJSON(Protocol):
@@ -58,12 +73,14 @@ def snapshot_to_message(
     snapshot: MetricsSnapshot,
     diagnosis: list[Diagnosis] | None = None,
     capacity: CapacityEstimate | None = None,
+    cost: CostEstimate | None = None,
 ) -> dict:
     return {
         "timestamp": snapshot.timestamp,
         **asdict(snapshot.metrics),
         "diagnosis": [asdict(d) for d in (diagnosis or [])],
         "capacity": asdict(capacity) if capacity is not None else None,
+        "cost": asdict(cost) if cost is not None else None,
     }
 
 
@@ -86,7 +103,13 @@ async def poll_once(
     store.add(metrics, ts)
     capacity = estimate_capacity(metrics, store.get_recent(), ts)
     diagnosis = diagnose(metrics, preemptions_delta, capacity)
-    await manager.broadcast(snapshot_to_message(snapshot, diagnosis, capacity))
+    cost = estimate_cost(
+        metrics.prompt_tokens_total,
+        metrics.generation_tokens_total,
+        COMMERCIAL_PROMPT_PRICE_PER_1M,
+        COMMERCIAL_COMPLETION_PRICE_PER_1M,
+    )
+    await manager.broadcast(snapshot_to_message(snapshot, diagnosis, capacity, cost))
     return snapshot
 
 

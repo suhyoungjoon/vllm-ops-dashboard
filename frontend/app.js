@@ -26,6 +26,9 @@ const el = {
   prefixHitRate: document.getElementById("value-prefix-hit-rate"),
   concurrency: document.getElementById("value-concurrency"),
   saturationEta: document.getElementById("value-saturation-eta"),
+  costPromptTokens: document.getElementById("value-cost-prompt-tokens"),
+  costGenerationTokens: document.getElementById("value-cost-generation-tokens"),
+  costEstimate: document.getElementById("value-cost-estimate"),
   configPanel: document.getElementById("panel-config"),
   configGrid: document.getElementById("config-grid"),
   diagnosisPanel: document.getElementById("diagnosis-panel"),
@@ -101,6 +104,15 @@ function formatSaturationEta(capacity) {
   return `약 ${capacity.minutes_to_saturation.toFixed(1)}분 후`;
 }
 
+function formatTokenCount(n) {
+  return n === null || n === undefined ? "--" : `${Math.round(n).toLocaleString("ko-KR")}`;
+}
+
+function formatCostEstimate(cost) {
+  if (!cost || !cost.enabled) return "단가 미설정";
+  return `$${cost.estimated_cost_usd.toFixed(4)}`;
+}
+
 function updateAdvancedStats(message) {
   el.ttftP50.textContent = formatSeconds(message.ttft_p50_seconds);
   el.ttftP90.textContent = formatSeconds(message.ttft_p90_seconds);
@@ -114,6 +126,9 @@ function updateAdvancedStats(message) {
   el.prefixHitRate.textContent = formatPercent(message.prefix_cache_hit_rate);
   el.concurrency.textContent = formatConcurrency(message.capacity);
   el.saturationEta.textContent = formatSaturationEta(message.capacity);
+  el.costPromptTokens.textContent = formatTokenCount(message.prompt_tokens_total);
+  el.costGenerationTokens.textContent = formatTokenCount(message.generation_tokens_total);
+  el.costEstimate.textContent = formatCostEstimate(message.cost);
   renderConfigPanel(message.cache_config);
 }
 
