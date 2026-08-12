@@ -5,11 +5,13 @@
 
 from dataclasses import dataclass
 
+from backend.capacity import CapacityEstimate
 from backend.poller import VLLMMetrics
 
 KV_CACHE_PRESSURE_THRESHOLD = 0.85
 QUEUE_BOTTLENECK_MIN_SECONDS = 0.05
 LOW_PREFIX_CACHE_HIT_RATE = 0.5
+SATURATION_WARNING_MINUTES = 5.0
 
 
 @dataclass
@@ -19,7 +21,11 @@ class Diagnosis:
     recommendation: str | None = None
 
 
-def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagnosis]:
+def diagnose(
+    metrics: VLLMMetrics,
+    preemptions_delta: float = 0.0,
+    capacity: CapacityEstimate | None = None,
+) -> list[Diagnosis]:
     findings: list[Diagnosis] = []
 
     if (
@@ -63,6 +69,22 @@ def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagn
                 level="info",
                 message=f"프리픽스 캐시 적중률 낮음 — 현재 {metrics.prefix_cache_hit_rate * 100:.0f}%입니다.",
                 recommendation="프롬프트 앞부분을 공통 템플릿화하면 캐시 적중률을 높일 수 있습니다.",
+            )
+        )
+
+    if (
+        capacity is not None
+        and capacity.minutes_to_saturation is not None
+        and capacity.minutes_to_saturation <= SATURATION_WARNING_MINUTES
+    ):
+        findings.append(
+            Diagnosis(
+                level="warning",
+                message=(
+                    f"포화 임박 — 현재 추세면 약 {capacity.minutes_to_saturation:.1f}분 후 "
+                    "KV 캐시가 포화 상태에 도달할 수 있습니다."
+                ),
+                recommendation="트래픽이 몰리는 시간대라면 동시 처리 용량을 미리 늘리는 것을 검토하세요.",
             )
         )
 

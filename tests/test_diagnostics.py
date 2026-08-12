@@ -1,5 +1,19 @@
+from backend.capacity import CapacityEstimate
 from backend.diagnostics import diagnose
 from backend.poller import VLLMMetrics
+
+
+def _capacity(**overrides) -> CapacityEstimate:
+    base = dict(
+        max_concurrency=40.0,
+        current_concurrency=5.0,
+        headroom=35.0,
+        headroom_ratio=0.125,
+        kv_trend_per_minute=None,
+        minutes_to_saturation=None,
+    )
+    base.update(overrides)
+    return CapacityEstimate(**base)
 
 
 def _metrics(**overrides) -> VLLMMetrics:
@@ -74,6 +88,29 @@ def test_diagnose_flags_low_prefix_cache_hit_rate():
 def test_diagnose_ignores_prefix_cache_hit_rate_when_none():
     findings = diagnose(_metrics(prefix_cache_hit_rate=None))
     assert not any("프리픽스 캐시" in f.message for f in findings)
+
+
+def test_diagnose_flags_saturation_imminent_within_threshold():
+    findings = diagnose(_metrics(), capacity=_capacity(minutes_to_saturation=3.0))
+    match = next(f for f in findings if "포화 임박" in f.message)
+    assert match.level == "warning"
+    assert "3.0" in match.message
+    assert match.recommendation is not None
+
+
+def test_diagnose_ignores_saturation_beyond_warning_window():
+    findings = diagnose(_metrics(), capacity=_capacity(minutes_to_saturation=30.0))
+    assert not any("포화 임박" in f.message for f in findings)
+
+
+def test_diagnose_ignores_saturation_when_not_trending_up():
+    findings = diagnose(_metrics(), capacity=_capacity(minutes_to_saturation=None))
+    assert not any("포화 임박" in f.message for f in findings)
+
+
+def test_diagnose_ignores_saturation_when_capacity_not_provided():
+    findings = diagnose(_metrics())
+    assert not any("포화 임박" in f.message for f in findings)
 
 
 def test_diagnose_can_report_multiple_findings_at_once():

@@ -17,6 +17,7 @@ import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+from backend.capacity import CapacityEstimate, estimate_capacity
 from backend.diagnostics import Diagnosis, diagnose
 from backend.poller import fetch_metrics, parse_metrics
 from backend.store import DEFAULT_RETENTION_SECONDS, MetricsSnapshot, MetricsStore
@@ -53,11 +54,16 @@ class ConnectionManager:
             self.unregister(connection)
 
 
-def snapshot_to_message(snapshot: MetricsSnapshot, diagnosis: list[Diagnosis] | None = None) -> dict:
+def snapshot_to_message(
+    snapshot: MetricsSnapshot,
+    diagnosis: list[Diagnosis] | None = None,
+    capacity: CapacityEstimate | None = None,
+) -> dict:
     return {
         "timestamp": snapshot.timestamp,
         **asdict(snapshot.metrics),
         "diagnosis": [asdict(d) for d in (diagnosis or [])],
+        "capacity": asdict(capacity) if capacity is not None else None,
     }
 
 
@@ -78,8 +84,9 @@ async def poll_once(
 
     snapshot = MetricsSnapshot(timestamp=ts, metrics=metrics)
     store.add(metrics, ts)
-    diagnosis = diagnose(metrics, preemptions_delta)
-    await manager.broadcast(snapshot_to_message(snapshot, diagnosis))
+    capacity = estimate_capacity(metrics, store.get_recent(), ts)
+    diagnosis = diagnose(metrics, preemptions_delta, capacity)
+    await manager.broadcast(snapshot_to_message(snapshot, diagnosis, capacity))
     return snapshot
 
 

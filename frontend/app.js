@@ -24,6 +24,8 @@ const el = {
   inferenceTime: document.getElementById("value-inference-time"),
   preemptions: document.getElementById("value-preemptions"),
   prefixHitRate: document.getElementById("value-prefix-hit-rate"),
+  concurrency: document.getElementById("value-concurrency"),
+  saturationEta: document.getElementById("value-saturation-eta"),
   configPanel: document.getElementById("panel-config"),
   configGrid: document.getElementById("config-grid"),
   diagnosisPanel: document.getElementById("diagnosis-panel"),
@@ -80,6 +82,25 @@ function renderConfigPanel(cacheConfig) {
   el.configPanel.dataset.rendered = "true";
 }
 
+function formatConcurrency(capacity) {
+  if (!capacity) return "--";
+  if (capacity.max_concurrency === null || capacity.max_concurrency === undefined) {
+    return capacity.current_concurrency.toFixed(0);
+  }
+  return `${capacity.current_concurrency.toFixed(0)} / ${capacity.max_concurrency.toFixed(1)}`;
+}
+
+function formatSaturationEta(capacity) {
+  if (!capacity || capacity.kv_trend_per_minute === null || capacity.kv_trend_per_minute === undefined) {
+    return "데이터 수집 중";
+  }
+  if (capacity.minutes_to_saturation === null || capacity.minutes_to_saturation === undefined) {
+    return "안정적";
+  }
+  if (capacity.minutes_to_saturation <= 0) return "임박";
+  return `약 ${capacity.minutes_to_saturation.toFixed(1)}분 후`;
+}
+
 function updateAdvancedStats(message) {
   el.ttftP50.textContent = formatSeconds(message.ttft_p50_seconds);
   el.ttftP90.textContent = formatSeconds(message.ttft_p90_seconds);
@@ -91,6 +112,8 @@ function updateAdvancedStats(message) {
   el.inferenceTime.textContent = formatSeconds(message.inference_time_avg_seconds);
   el.preemptions.textContent = message.num_preemptions_total.toFixed(0);
   el.prefixHitRate.textContent = formatPercent(message.prefix_cache_hit_rate);
+  el.concurrency.textContent = formatConcurrency(message.capacity);
+  el.saturationEta.textContent = formatSaturationEta(message.capacity);
   renderConfigPanel(message.cache_config);
 }
 
