@@ -23,13 +23,16 @@ def test_diagnose_returns_ok_when_nothing_wrong():
     findings = diagnose(_metrics())
     assert len(findings) == 1
     assert findings[0].level == "ok"
+    assert findings[0].recommendation is None
 
 
 def test_diagnose_flags_queue_bottleneck_when_queue_exceeds_inference_time():
     findings = diagnose(_metrics(queue_time_avg_seconds=1.0, inference_time_avg_seconds=0.2))
     levels = [f.level for f in findings]
     assert "warning" in levels
-    assert any("대기열 병목" in f.message for f in findings)
+    match = next(f for f in findings if "대기열 병목" in f.message)
+    assert match.recommendation is not None
+    assert "max_num_seqs" in match.recommendation
 
 
 def test_diagnose_ignores_tiny_queue_time_noise():
@@ -39,7 +42,9 @@ def test_diagnose_ignores_tiny_queue_time_noise():
 
 def test_diagnose_flags_kv_cache_pressure():
     findings = diagnose(_metrics(kv_cache_usage_perc=0.9))
-    assert any(f.level == "warning" and "메모리 압박" in f.message for f in findings)
+    match = next(f for f in findings if "메모리 압박" in f.message)
+    assert match.level == "warning"
+    assert "gpu_memory_utilization" in match.recommendation
 
 
 def test_diagnose_does_not_flag_kv_cache_below_threshold():
@@ -49,7 +54,9 @@ def test_diagnose_does_not_flag_kv_cache_below_threshold():
 
 def test_diagnose_flags_preemptions_when_delta_positive():
     findings = diagnose(_metrics(), preemptions_delta=2.0)
-    assert any(f.level == "warning" and "선점 발생" in f.message and "2" in f.message for f in findings)
+    match = next(f for f in findings if "선점 발생" in f.message)
+    assert match.level == "warning" and "2" in match.message
+    assert "max_model_len" in match.recommendation
 
 
 def test_diagnose_ignores_zero_preemptions_delta():
@@ -59,7 +66,9 @@ def test_diagnose_ignores_zero_preemptions_delta():
 
 def test_diagnose_flags_low_prefix_cache_hit_rate():
     findings = diagnose(_metrics(prefix_cache_hit_rate=0.2))
-    assert any(f.level == "info" and "프리픽스 캐시 적중률" in f.message for f in findings)
+    match = next(f for f in findings if "프리픽스 캐시 적중률" in f.message)
+    assert match.level == "info"
+    assert "템플릿화" in match.recommendation
 
 
 def test_diagnose_ignores_prefix_cache_hit_rate_when_none():

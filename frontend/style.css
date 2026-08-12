@@ -74,6 +74,12 @@ h1 {
   flex-shrink: 0;
 }
 
+.diagnosis-item__recommendation {
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
 .diagnosis-item--warning {
   background: var(--warning-bg);
   border-color: #b91c1c;

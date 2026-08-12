@@ -34,10 +34,12 @@ const DIAGNOSIS_ICONS = { warning: "⚠", info: "ℹ", ok: "✓" };
 function renderDiagnosis(diagnosis) {
   if (!diagnosis || diagnosis.length === 0) return;
   el.diagnosisPanel.innerHTML = diagnosis
-    .map(
-      (d) =>
-        `<div class="diagnosis-item diagnosis-item--${d.level}"><span class="diagnosis-item__icon">${DIAGNOSIS_ICONS[d.level] || ""}</span><span>${d.message}</span></div>`
-    )
+    .map((d) => {
+      const recommendation = d.recommendation
+        ? `<div class="diagnosis-item__recommendation">→ ${d.recommendation}</div>`
+        : "";
+      return `<div class="diagnosis-item diagnosis-item--${d.level}"><span class="diagnosis-item__icon">${DIAGNOSIS_ICONS[d.level] || ""}</span><div><div>${d.message}</div>${recommendation}</div></div>`;
+    })
     .join("");
 }
 

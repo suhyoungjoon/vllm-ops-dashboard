@@ -16,6 +16,7 @@ LOW_PREFIX_CACHE_HIT_RATE = 0.5
 class Diagnosis:
     level: str  # "warning" | "info" | "ok"
     message: str
+    recommendation: str | None = None
 
 
 def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagnosis]:
@@ -34,6 +35,7 @@ def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagn
                     f"대기열 병목 — 평균 대기시간({metrics.queue_time_avg_seconds * 1000:.0f}ms)이 "
                     f"평균 처리시간({metrics.inference_time_avg_seconds * 1000:.0f}ms)보다 깁니다."
                 ),
+                recommendation="처리 용량 대비 요청이 밀리고 있습니다. max_num_seqs 상향이나 replica 추가를 검토하세요.",
             )
         )
 
@@ -42,6 +44,7 @@ def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagn
             Diagnosis(
                 level="warning",
                 message=f"메모리 압박 — KV 캐시 사용률이 {metrics.kv_cache_usage_perc * 100:.0f}%로 높습니다.",
+                recommendation="gpu_memory_utilization 여유를 늘리거나 동시 요청 수 제한을 검토하세요.",
             )
         )
 
@@ -50,6 +53,7 @@ def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagn
             Diagnosis(
                 level="warning",
                 message=f"선점 발생 — 최근 폴링 사이 {preemptions_delta:.0f}건의 요청이 선점되었습니다.",
+                recommendation="gpu_memory_utilization을 낮추거나 max_model_len을 줄이는 것을 검토하세요.",
             )
         )
 
@@ -58,6 +62,7 @@ def diagnose(metrics: VLLMMetrics, preemptions_delta: float = 0.0) -> list[Diagn
             Diagnosis(
                 level="info",
                 message=f"프리픽스 캐시 적중률 낮음 — 현재 {metrics.prefix_cache_hit_rate * 100:.0f}%입니다.",
+                recommendation="프롬프트 앞부분을 공통 템플릿화하면 캐시 적중률을 높일 수 있습니다.",
             )
         )
 
