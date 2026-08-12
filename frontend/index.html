@@ -9,7 +9,10 @@
 <body>
 <header>
   <h1>vLLM Ops Dashboard</h1>
-  <span id="connection-status" class="status status--connecting">연결 중...</span>
+  <div class="header__actions">
+    <button id="download-report" class="button">요약 리포트 다운로드</button>
+    <span id="connection-status" class="status status--connecting">연결 중...</span>
+  </div>
 </header>
 
 <section class="diagnosis" id="diagnosis-panel"></section>

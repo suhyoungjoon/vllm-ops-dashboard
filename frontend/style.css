@@ -35,6 +35,26 @@ h1 {
   margin: 0;
 }
 
+.header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--accent);
+}
+
 .status {
   font-size: 0.85rem;
   padding: 0.3rem 0.7rem;

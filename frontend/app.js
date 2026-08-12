@@ -2,13 +2,15 @@ const WINDOW_SECONDS = 600; // 최근 10분
 const KV_WARNING_THRESHOLD = 0.9;
 
 const state = {
-  points: [], // { timestamp, kv, running, waiting }
+  points: [], // { timestamp, kv, running, waiting, tokens }
   lastGenerationTokens: null,
   lastTimestamp: null,
+  latestMessage: null,
 };
 
 const el = {
   status: document.getElementById("connection-status"),
+  downloadReportButton: document.getElementById("download-report"),
   kvCard: document.getElementById("card-kv"),
   kvValue: document.getElementById("value-kv"),
   runningValue: document.getElementById("value-running"),
@@ -223,12 +225,14 @@ function handleMessage(message) {
   const tps = computeTps(message);
   state.lastGenerationTokens = message.generation_tokens_total;
   state.lastTimestamp = message.timestamp;
+  state.latestMessage = message;
 
   state.points.push({
     timestamp: message.timestamp,
     kv: message.kv_cache_usage_perc,
     running: message.num_requests_running,
     waiting: message.num_requests_waiting,
+    tokens: message.generation_tokens_total,
   });
   pruneOldPoints(message.timestamp);
 
@@ -237,6 +241,98 @@ function handleMessage(message) {
   updateAdvancedStats(message);
   renderDiagnosis(message.diagnosis);
 }
+
+function computeWindowStats() {
+  if (state.points.length === 0) return null;
+  const first = state.points[0];
+  const last = state.points[state.points.length - 1];
+  const kvValues = state.points.map((p) => p.kv);
+  const durationSeconds = last.timestamp - first.timestamp;
+  const tokenDelta = last.tokens - first.tokens;
+  const avgTps = durationSeconds > 0 ? Math.max(0, tokenDelta / durationSeconds) : null;
+
+  return {
+    count: state.points.length,
+    startTimestamp: first.timestamp,
+    endTimestamp: last.timestamp,
+    durationSeconds,
+    avgKv: kvValues.reduce((a, b) => a + b, 0) / kvValues.length,
+    maxKv: Math.max(...kvValues),
+    minKv: Math.min(...kvValues),
+    avgTps,
+  };
+}
+
+function buildReportMarkdown() {
+  const msg = state.latestMessage;
+  const win = computeWindowStats();
+  if (!msg || !win) {
+    return "# vLLM Ops 요약 리포트\n\n아직 수집된 데이터가 없습니다.\n";
+  }
+
+  const lines = [
+    "# vLLM Ops 요약 리포트",
+    "",
+    `생성 시각: ${new Date().toLocaleString("ko-KR")}`,
+    `집계 구간: ${formatTime(win.startTimestamp)} ~ ${formatTime(win.endTimestamp)} (약 ${(win.durationSeconds / 60).toFixed(1)}분, 스냅샷 ${win.count}개)`,
+    "",
+    "## 처리량",
+    `- 평균 TPS: ${win.avgTps === null ? "--" : win.avgTps.toFixed(1)} 토큰/초`,
+    `- 누적 입력 토큰: ${formatTokenCount(msg.prompt_tokens_total)}`,
+    `- 누적 출력 토큰: ${formatTokenCount(msg.generation_tokens_total)}`,
+    "",
+    "## KV 캐시 사용률 (집계 구간)",
+    `- 평균: ${(win.avgKv * 100).toFixed(1)}%`,
+    `- 최고: ${(win.maxKv * 100).toFixed(1)}%`,
+    `- 최저: ${(win.minKv * 100).toFixed(1)}%`,
+    "",
+    "## 지연시간 (최근 시점 기준)",
+    `- TTFT p50 / p90 / p99: ${formatSeconds(msg.ttft_p50_seconds)} / ${formatSeconds(msg.ttft_p90_seconds)} / ${formatSeconds(msg.ttft_p99_seconds)}`,
+    `- 전체 요청 지연 p50 / p90 / p99: ${formatSeconds(msg.e2e_p50_seconds)} / ${formatSeconds(msg.e2e_p90_seconds)} / ${formatSeconds(msg.e2e_p99_seconds)}`,
+    "",
+    "## 운영 신호",
+    `- 대기시간(평균): ${formatSeconds(msg.queue_time_avg_seconds)}`,
+    `- 처리시간(평균): ${formatSeconds(msg.inference_time_avg_seconds)}`,
+    `- 선점 누계: ${msg.num_preemptions_total.toFixed(0)}`,
+    `- Prefix 캐시 적중률: ${formatPercent(msg.prefix_cache_hit_rate)}`,
+    `- 동시성 여유: ${formatConcurrency(msg.capacity)}`,
+    `- 포화 예상까지: ${formatSaturationEta(msg.capacity)}`,
+    "",
+    "## 현재 진단",
+    ...(msg.diagnosis || []).map(
+      (d) => `- [${d.level}] ${d.message}${d.recommendation ? ` → ${d.recommendation}` : ""}`
+    ),
+    "",
+    "## 비용 참고",
+    `- 상용 API 환산 비용: ${formatCostEstimate(msg.cost)}`,
+  ];
+
+  if (msg.cache_config) {
+    lines.push("", "## 서빙 설정");
+    for (const [key, label] of CONFIG_FIELDS) {
+      if (key in msg.cache_config) lines.push(`- ${label}: ${msg.cache_config[key]}`);
+    }
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+
+function downloadReport() {
+  const markdown = buildReportMarkdown();
+  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  a.href = url;
+  a.download = `vllm-ops-report-${stamp}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+el.downloadReportButton.addEventListener("click", downloadReport);
 
 function connect() {
   const protocol = location.protocol === "https:" ? "wss" : "ws";
